@@ -31,6 +31,24 @@ MODEL_URL = (
     "gesture_recognizer/float16/1/gesture_recognizer.task"
 )
 
+# Nomes amigáveis para cada gesto reconhecido pelo modelo.
+# Edite os valores à vontade para usar as palavras que preferir.
+GESTURE_NAMES = {
+    "Closed_Fist": "Punho fechado",
+    "Open_Palm": "Palma aberta",
+    "Pointing_Up": "Apontando",
+    "Thumb_Down": "Ruim",
+    "Thumb_Up": "Bom",
+    "Victory": "Paz",
+    "ILoveYou": "Eu te amo",
+    "None": "Nenhum gesto",
+}
+
+
+def friendly_name(category_name: str) -> str:
+    """Traduz o rótulo técnico do MediaPipe para o nome amigável configurado acima."""
+    return GESTURE_NAMES.get(category_name, category_name)
+
 
 def ensure_model() -> None:
     """Baixa o modelo pré-treinado do MediaPipe caso ainda não exista localmente."""
@@ -47,6 +65,36 @@ def ensure_model() -> None:
     print("Modelo baixado com sucesso.")
 
 
+def list_cameras(max_index: int = 5) -> list[int]:
+    """Testa os índices de câmera disponíveis (0 a max_index) e retorna os que abrem."""
+    available = []
+    for i in range(max_index + 1):
+        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            available.append(i)
+            cap.release()
+    return available
+
+
+def choose_camera() -> int:
+    """Deixa o usuário escolher qual câmera usar, caso haja mais de uma."""
+    cameras = list_cameras()
+    if not cameras:
+        print("Nenhuma câmera encontrada.")
+        sys.exit(1)
+    if len(cameras) == 1:
+        return cameras[0]
+
+    print("Câmeras encontradas:")
+    for idx in cameras:
+        print(f"  [{idx}] Câmera {idx}")
+    while True:
+        choice = input(f"Digite o número da câmera que deseja usar {cameras}: ").strip()
+        if choice.isdigit() and int(choice) in cameras:
+            return int(choice)
+        print("Opção inválida, tente de novo.")
+
+
 def main() -> None:
     ensure_model()
 
@@ -54,9 +102,10 @@ def main() -> None:
     options = vision.GestureRecognizerOptions(base_options=base_options, num_hands=2)
     recognizer = vision.GestureRecognizer.create_from_options(options)
 
-    cap = cv2.VideoCapture(0)
+    camera_index = choose_camera()
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
     if not cap.isOpened():
-        print("Não foi possível abrir a webcam (índice 0). Verifique a conexão/permissões.")
+        print(f"Não foi possível abrir a webcam (índice {camera_index}). Verifique a conexão/permissões.")
         sys.exit(1)
 
     print("Câmera aberta. Pressione 'q' na janela de vídeo para sair.")
@@ -94,7 +143,7 @@ def main() -> None:
                 # Rótulo do gesto reconhecido
                 if idx < len(result.gestures) and result.gestures[idx]:
                     gesture = result.gestures[idx][0]
-                    label = f"{gesture.category_name} ({gesture.score:.2f})"
+                    label = f"{friendly_name(gesture.category_name)} ({gesture.score:.2f})"
                     cv2.putText(
                         frame,
                         label,
